@@ -1,0 +1,30 @@
+---
+// Рубрика: сначала живые темы, потом разборы, свежие выше.
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { site, formatDate, pageUrl, topicMaterials, plural, rubricUrl } from '../../lib/site';
+
+export function getStaticPaths() {
+  return site.rubrics.map((r) => ({ params: { slug: r.slug }, props: { rubric: r } }));
+}
+const { rubric } = Astro.props;
+const fresh = (e: { data: { updated?: Date; published: Date } }) => (e.data.updated ?? e.data.published).getTime();
+const all = await getCollection('explained', (e) => !e.data.draft && e.data.rubric === rubric.slug);
+const topics = all.filter((e) => e.data.kind === 'topic').sort((a, b) => fresh(b) - fresh(a));
+const events = all.filter((e) => e.data.kind !== 'topic').sort((a, b) => b.data.published.getTime() - a.data.published.getTime());
+const url = `${site.url}${rubricUrl(rubric.slug)}`;
+const jsonld = [
+  { '@context': 'https://schema.org', '@type': 'CollectionPage', name: rubric.title, description: rubric.description, url, inLanguage: site.lang,
+    mainEntity: { '@type': 'ItemList', itemListElement: [...topics, ...events].map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${site.url}${pageUrl(e)}`, name: e.data.title })) } },
+  { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Рубрики', item: `${site.url}/rubrics/` },
+    { '@type': 'ListItem', position: 2, name: rubric.title, item: url },
+  ] },
+];
+const count = (n: number) => `${n} ${plural(n, 'материалу', 'материалам', 'материалам')}`;
+---
+<Base noindex={all.length === 0} jsonld={jsonld} title={`${rubric.title} — ${site.name}`} description={rubric.description}>
+  <header class="page-head"><h1>{rubric.title}</h1><p class="lead">{rubric.description}</p></header>
+  {topics.length > 0 && (<><h2 class="list-h">Темы</h2><ul class="list">{topics.map((e) => (<li><a href={pageUrl(e)}>{e.data.title}</a><div class="meta">обновлено {formatDate(e.data.updated ?? e.data.published)} · по {count(topicMaterials(e.data).length)}</div></li>))}</ul></>)}
+  {events.length > 0 && (<><h2 class="list-h">Разборы</h2><ul class="list">{events.map((e) => (<li><a href={pageUrl(e)}>{e.data.title}</a><div class="meta">{formatDate(e.data.published)}</div></li>))}</ul></>)}
+</Base>

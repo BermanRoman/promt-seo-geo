@@ -1,0 +1,117 @@
+---
+// Разбор (kind: event) и живая страница темы (kind: topic). Шаблон — knowledge/razbor-rules.md:
+// H1 → автор и дата → «Коротко» → текст → вопросы и ответы → связь с материалом-основой → «Ещё по теме» → кнопка.
+import { render, getCollection, type CollectionEntry } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Cta from './Cta.astro';
+import { site, materialUrl, rubricOf, rubricUrl, pageUrl, topicMaterials, plural, formatDate, authorLd, getMaterials } from '../lib/site';
+import { ogFile } from '../lib/og.mjs';
+import { splitParagraph } from '../lib/sentences.mjs';
+
+interface Props { entry: CollectionEntry<'explained' | 'pending'>; preview?: boolean }
+const { entry, preview = false } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+const url = `${site.url}${pageUrl(entry)}`;
+const isTopic = d.kind === 'topic';
+const rubric = rubricOf(d.rubric);
+const all = await getMaterials();
+const base = all.find((m) => m.id === d.material);
+const baseTitle = base?.data.title ?? d.material;
+const tMaterials = topicMaterials(d);
+// время чтения: текст + «Коротко» + ответы FAQ, 180 слов в минуту
+const words = [entry.body ?? '', d.short, ...d.faq.flatMap((f) => [f.q, f.a])].join(' ')
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+const readMin = Math.max(1, Math.round(words / 180));
+// «Ещё по теме»: опубликованные разборы и темы того же материала, иначе свежие из рубрики, до 4
+const published = await getCollection('explained', (e) => !e.data.draft && e.id !== entry.id);
+const fresh = (e: typeof published[number]) => (e.data.updated ?? e.data.published).getTime();
+const sameMaterial = published.filter((e) => e.data.material === d.material).slice(0, 4);
+const more = sameMaterial.length ? sameMaterial : published.filter((e) => e.data.rubric === d.rubric).sort((a, b) => fresh(b) - fresh(a)).slice(0, 4);
+const moreTitle = sameMaterial.length ? 'Ещё по этому материалу' : `Ещё в рубрике «${rubric.title}»`;
+const shortLines = splitParagraph(d.short);
+const ogImage = `/og/${ogFile.explained(entry.id, d.title, site.ogVersion)}`;
+
+const jsonld = [
+  {
+    '@context': 'https://schema.org',
+    '@type': isTopic ? 'Article' : 'NewsArticle',
+    '@id': `${url}#text`,
+    headline: d.title,
+    description: d.description,
+    inLanguage: site.lang,
+    datePublished: d.published.toISOString(),
+    dateModified: (d.updated ?? d.published).toISOString(),
+    author: authorLd,
+    publisher: { '@type': 'Person', name: site.author.name, url: `${site.url}/author/` },
+    mainEntityOfPage: url,
+    isBasedOn: (isTopic ? tMaterials : [d.material]).map((s) => `${site.url}${materialUrl(s)}`),
+    image: `${site.url}${ogImage}`,
+    ...(d.sources.length ? { citation: d.sources } : {}),
+  },
+  ...(d.faq.length ? [{
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: d.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  }] : []),
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: site.name, item: `${site.url}/` },
+      { '@type': 'ListItem', position: 2, name: rubric.title, item: `${site.url}${rubricUrl(rubric.slug)}` },
+      { '@type': 'ListItem', position: 3, name: d.title },
+    ],
+  },
+];
+---
+<Base title={d.seoTitle ?? d.title} ogTitle={d.title} description={d.description} type="article" published={d.published}
+      jsonld={jsonld} noindex={preview} image={ogImage}>
+  <article>
+    {preview && <p class="preview-flag">Черновик — виден только по ссылке, поисковики его не индексируют</p>}
+    <header class="page-head">
+      <h1>{d.title}</h1>
+      <div class="byline">
+        {site.author.photo && <img src={site.author.photo} width="44" height="44" alt="" />}
+        <div>
+          <p><a href="/author/">{site.author.name}</a> · {readMin} мин чтения</p>
+          {isTopic
+            ? <p>обновлено {formatDate(d.updated ?? d.published)} · по {tMaterials.length} {plural(tMaterials.length, 'материалу', 'материалам', 'материалам')}</p>
+            : <p>{formatDate(d.published)}{d.updated && <> · обновлено {formatDate(d.updated)}</>}</p>}
+        </div>
+      </div>
+    </header>
+
+    <section class="short">
+      <h2>Коротко</h2>
+      {shortLines.map((line) => <p>{line}</p>)}
+    </section>
+
+    <div class="prose" id="text">
+      <Content />
+      {d.faq.length > 0 && (
+        <section class="faq">
+          <h2>Вопросы и ответы</h2>
+          {d.faq.map((f) => (<details><summary><h3>{f.q}</h3></summary><p>{f.a}</p></details>))}
+        </section>
+      )}
+    </div>
+
+    <hr class="sep" />
+    <p data-read-end>
+      {isTopic
+        ? <>Эта тема разбиралась в {tMaterials.length} {plural(tMaterials.length, 'материале', 'материалах', 'материалах')}, последний раз — в материале «<a href={materialUrl(d.material)} data-goal="explainer_to_material">{baseTitle}</a>».</>
+        : <>Подробнее — в материале «<a href={materialUrl(d.material)} data-goal="explainer_to_material">{baseTitle}</a>».</>}
+    </p>
+
+    {more.length > 0 && (
+      <nav class="more" aria-label={moreTitle}>
+        <h2>{moreTitle}</h2>
+        <ul>{more.map((e) => <li><a href={pageUrl(e)}>{e.data.title}</a></li>)}</ul>
+      </nav>
+    )}
+
+    <Cta goal="cta_explainer" />
+  </article>
+  {d.faq.length > 0 && <script is:inline>addEventListener('beforeprint',function(){document.querySelectorAll('.faq details').forEach(function(d){d.open=true;});});</script>}
+</Base>

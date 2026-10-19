@@ -1,0 +1,17 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { site, formatDate, rubricUrl } from '../../lib/site';
+
+const items = (await getCollection('explained', (e) => !e.data.draft && e.data.kind === 'event'))
+  .sort((a, b) => b.data.published.getTime() - a.data.published.getTime());
+const jsonld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Разборы', url: `${site.url}/explained/`, inLanguage: site.lang,
+  mainEntity: { '@type': 'ItemList', itemListElement: items.map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${site.url}/explained/${e.id}/`, name: e.data.title })) } }];
+---
+<Base noindex={items.length === 0} jsonld={jsonld} title={`Разборы — ${site.name}`} description={`Разборы тем, о которых пишет ${site.author.name}: что произошло, что говорят участники и что это значит.`}>
+  <header class="page-head"><h1>Разборы</h1></header>
+  {site.rubrics.length > 0 && <ul class="chips" aria-label="Рубрики">{site.rubrics.map((r) => <li><a href={rubricUrl(r.slug)}>{r.title}</a></li>)}</ul>}
+  <ul class="list">
+    {items.map((e) => (<li><a href={`/explained/${e.id}/`}>{e.data.title}</a><div class="meta">{formatDate(e.data.published)}</div></li>))}
+  </ul>
+</Base>

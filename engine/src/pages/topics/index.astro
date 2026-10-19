@@ -1,0 +1,19 @@
+---
+// Живые страницы тем: сквозные сюжеты из нескольких материалов, дополняются с каждым новым. Свежие — выше.
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { site, formatDate, topicMaterials, plural, rubricUrl } from '../../lib/site';
+
+const items = (await getCollection('explained', (e) => !e.data.draft && e.data.kind === 'topic'))
+  .sort((a, b) => (b.data.updated ?? b.data.published).getTime() - (a.data.updated ?? a.data.published).getTime());
+const jsonld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Темы', url: `${site.url}/topics/`, inLanguage: site.lang,
+  mainEntity: { '@type': 'ItemList', itemListElement: items.map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${site.url}/topics/${e.id}/`, name: e.data.title })) } }];
+const count = (n: number) => `${n} ${plural(n, 'материалу', 'материалам', 'материалам')}`;
+---
+<Base noindex={items.length === 0} jsonld={jsonld} title={`Темы — ${site.name}`} description={`Главные темы ${site.author.name} простыми словами: что происходит сейчас и как менялась ситуация.`}>
+  <header class="page-head"><h1>Темы</h1></header>
+  {site.rubrics.length > 0 && <ul class="chips" aria-label="Рубрики">{site.rubrics.map((r) => <li><a href={rubricUrl(r.slug)}>{r.title}</a></li>)}</ul>}
+  <ul class="list">
+    {items.map((e) => (<li><a href={`/topics/${e.id}/`}>{e.data.title}</a><div class="meta">обновлено {formatDate(e.data.updated ?? e.data.published)} · по {count(topicMaterials(e.data).length)}</div></li>))}
+  </ul>
+</Base>

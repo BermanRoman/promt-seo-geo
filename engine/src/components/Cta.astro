@@ -1,0 +1,18 @@
+---
+// Главная кнопка страницы — одна на все шаблоны: подписка на канал или запись (site.config.json → cta).
+// Нет cta в конфиге — кнопки нет. goal — цель Метрики.
+import { site } from '../lib/site';
+interface Props { goal: string }
+const { goal } = Astro.props;
+const cta = site.cta;
+const isTg = cta?.type === 'telegram';
+---
+{cta?.link && (
+  <>
+    <a class="cta" href={cta.link} target="_blank" rel="noopener" data-goal={goal}>
+      {isTg && <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor" opacity=".18"/><path fill="currentColor" d="M5.4 11.8l10.9-4.2c.5-.2 1 .1.8.9l-1.9 8.8c-.1.6-.5.8-1 .5l-2.8-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-2.9 5.2-4.7c.2-.2 0-.3-.3-.1l-6.5 4.1-2.8-.9c-.6-.2-.6-.6.2-1z"/></svg>}
+      <span>{cta.label ?? (isTg ? 'Подписаться на Telegram' : 'Связаться')}</span>
+    </a>
+    {cta.caption && <p class="cta-caption">{cta.caption}</p>}
+  </>
+)}

@@ -1,0 +1,15 @@
+---
+// Черновики и обновления тем для проверки: noindex, закрыты в robots.txt, не попадают в sitemap.
+// При совпадении slug обновление из _pending важнее черновика.
+import { getCollection } from 'astro:content';
+import Razbor from '../../components/Razbor.astro';
+
+export async function getStaticPaths() {
+  const pending = await getCollection('pending');
+  const ids = new Set(pending.map((e) => e.id));
+  const entries = [...(await getCollection('explained', (e) => e.data.draft && !e.data.rejected)).filter((e) => !ids.has(e.id)), ...pending];
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+---
+<Razbor entry={entry} preview />

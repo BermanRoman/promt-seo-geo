@@ -1,0 +1,68 @@
+/* Каркас страниц: раскладка, текст, списки, кнопка, разбор. Цвета, шрифты и размеры — переменные темы
+   (src/styles/default-theme.css или workspace/design/theme.css). Здесь только то, что одинаково у всех. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--fs-body)/1.65 var(--font-body); }
+a { color: var(--accent); }
+img { max-width: 100%; height: auto; }
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+h1, h2, h3 { font-family: var(--font-head); line-height: 1.25; }
+
+.page-head { margin: 44px 0 28px; }
+.page-head h1 { font-size: var(--fs-h1); margin: 0 0 10px; }
+.page-head .lead { color: var(--muted); margin: 0; }
+.meta { color: var(--muted); font-size: var(--fs-meta); }
+
+.prose h2 { font-size: var(--fs-h2); margin: 40px 0 14px; }
+.prose h3 { font-size: var(--fs-h3); margin: 28px 0 10px; }
+.prose p, .prose ul, .prose ol { margin: 0 0 16px; }
+.prose ul, .prose ol { padding-left: 1.3em; }
+.prose li { margin: 4px 0; }
+.prose blockquote { margin: 0 0 16px; padding-left: 16px; border-left: 3px solid var(--accent); }
+.prose img { border-radius: var(--radius); }
+.prose hr, hr.sep { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+.prose table { border-collapse: collapse; width: 100%; margin: 0 0 16px; font-size: var(--fs-meta); display: block; overflow-x: auto; }
+.prose th, .prose td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+
+.list { list-style: none; padding: 0; margin: 24px 0; }
+.list li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.list a { color: var(--text); text-decoration: none; font-weight: 700; font-size: var(--fs-h3); }
+.list a:hover { color: var(--accent); }
+.list .meta { margin-top: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0 0 8px; }
+.chips a { display: inline-block; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--fs-meta); color: var(--text); text-decoration: none; }
+.chips a:hover { border-color: var(--accent); color: var(--accent); }
+.list-h { font-size: var(--fs-h2); margin: 36px 0 0; }
+
+/* главная кнопка: подписка на канал или запись — одна на страницу */
+.cta { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin: 32px 0 10px;
+  padding: 18px 22px; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); text-decoration: none;
+  font: 700 17px/1.2 var(--font-body); transition: transform .12s ease; }
+.cta:hover { transform: translateY(-1px); }
+.cta-caption { text-align: center; color: var(--muted); font-size: var(--fs-meta); margin: 0 0 24px; }
+
+/* разбор и тема */
+.byline { display: flex; gap: 12px; align-items: center; margin: 0 0 8px; }
+.byline img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.byline p { margin: 0; font-size: var(--fs-meta); color: var(--muted); }
+.byline a { color: var(--text); font-weight: 700; text-decoration: none; }
+.short { background: var(--surface); border-radius: var(--radius); padding: 18px 20px; margin: 20px 0 8px; }
+.short h2 { font-size: var(--fs-meta); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin: 0 0 8px; }
+.short p { margin: 0 0 6px; }
+.faq details { border-bottom: 1px solid var(--line); padding: 12px 0; }
+.faq summary { cursor: pointer; list-style: none; }
+.faq summary h3 { display: inline; font-size: var(--fs-h3); margin: 0; }
+.faq summary::-webkit-details-marker { display: none; }
+.more h2 { font-size: var(--fs-h3); margin: 32px 0 8px; }
+.more ul { padding-left: 1.2em; margin: 0; }
+.more li { margin: 6px 0; }
+.preview-flag { background: #fff3cd; color: #6b5200; padding: 8px 12px; border-radius: 8px; font-size: var(--fs-meta); margin-top: 20px; }
+
+/* автор */
+.author-photo { display: block; width: min(220px, 60vw); aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--radius); margin: 8px 0 18px; }
+
+.site-foot { border-top: 1px solid var(--line); margin-top: 48px; padding: 18px 0 28px; text-align: center; color: var(--muted); font-size: clamp(12px, 3.5vw, var(--fs-meta)); }
+.site-foot a { display: inline-block; padding: 8px 0; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.site-foot a:hover { color: var(--accent); }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 16px; top: 16px; background: var(--bg); padding: 8px; }

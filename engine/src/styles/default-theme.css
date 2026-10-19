@@ -1,0 +1,24 @@
+/* Нейтральная тема движка — пока у пользователя нет своей дизайн-системы (workspace/design/theme.css).
+   Своя тема задаёт те же переменные и свои шрифты (@font-face на файлы в workspace/public/fonts/). */
+@import '@fontsource/golos-text/400.css';
+@import '@fontsource/golos-text/700.css';
+
+:root {
+  --bg: #ffffff;
+  --surface: #f5f5f4;          /* фон блоков «Коротко», врезок */
+  --text: #1c1c1c;
+  --muted: #6b6b6b;            /* даты, подписи — контраст с фоном не ниже 4,5 */
+  --line: #e4e4e4;
+  --accent: #1f5fbf;           /* ссылки, номера, акценты — один цвет */
+  --cta-bg: #1f5fbf;           /* главная кнопка: подписка на канал или запись */
+  --cta-text: #ffffff;
+  --font-body: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-h1: clamp(24px, 6vw, 34px);
+  --fs-h2: clamp(20px, 5vw, 24px);
+  --fs-h3: 18px;
+  --fs-body: 17px;
+  --fs-meta: 14px;             /* служебные строки; на телефоне меньше 12 px не бывает */
+  --measure: 68ch;             /* ширина колонки текста */
+  --radius: 12px;
+}

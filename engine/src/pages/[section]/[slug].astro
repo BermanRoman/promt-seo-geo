@@ -1,0 +1,13 @@
+---
+// Материал автора — /<materials.path>/<slug>/ (по умолчанию /posts/<slug>/). Раздел задаётся в site.config.json.
+import MaterialPage from '../../components/MaterialPage.astro';
+import { site, getMaterials } from '../../lib/site';
+
+export async function getStaticPaths() {
+  const list = await getMaterials();
+  // «следующий» — более ранний материал: читатель идёт от свежего к старым
+  return list.map((entry, i) => ({ params: { section: site.materials.path, slug: entry.id }, props: { entry, next: list[i + 1] ?? null } }));
+}
+const { entry, next } = Astro.props;
+---
+<MaterialPage entry={entry} next={next} />

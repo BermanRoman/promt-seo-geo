@@ -1,0 +1,65 @@
+---
+// Страница материала автора: заголовок, дата, дисклеймер (если задан), текст автора, P.S., кнопка, разметка.
+// Текст автора выводится как есть — система его не переписывает.
+import { render } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Cta from './Cta.astro';
+import { site, formatDate, authorLd, materialUrl, type Material } from '../lib/site';
+import { ogFile } from '../lib/og.mjs';
+
+interface Props { entry: Material; next: Material | null }
+const { entry, next } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+const url = `${site.url}${materialUrl(entry.id)}`;
+const image = `/og/${ogFile.material(entry.id, d.title, site.ogVersion)}`;
+const jsonld = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    '@id': `${url}#text`,   // блок текста — для «Контентной аналитики» Метрики
+    headline: d.title,
+    ...(d.seoTitle && d.seoTitle !== d.title ? { alternativeHeadline: d.seoTitle } : {}),
+    description: d.description,
+    ...(d.keywords.length ? { keywords: d.keywords.join(', ') } : {}),
+    datePublished: d.date.toISOString(),
+    dateModified: (d.updated ?? d.date).toISOString(),
+    image: `${site.url}${image}`,
+    inLanguage: site.lang,
+    url,
+    mainEntityOfPage: url,
+    author: authorLd,
+    publisher: { '@type': 'Person', name: site.author.name, url: `${site.url}/author/` },
+    isPartOf: { '@type': 'Blog', name: site.name, url: site.url },
+    ...(d.source ? { sameAs: d.source } : {}),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: site.name, item: `${site.url}/` },
+      { '@type': 'ListItem', position: 2, name: d.title, item: url },
+    ],
+  },
+];
+const disclaimer: string[] = site.materials.disclaimer ?? [];
+---
+<Base title={d.seoTitle ?? d.title} ogTitle={d.title} description={d.description} type="article" published={d.date} jsonld={jsonld} image={image}>
+  <article>
+    <header class="page-head">
+      <h1>{d.title}</h1>
+      <p class="meta">{formatDate(d.date)}{d.updated && <> · обновлено {formatDate(d.updated)}</>} · <a href="/author/">{site.author.name}</a></p>
+    </header>
+    {disclaimer.length > 0 && (
+      <aside class="short" aria-label="Дисклеймер">{disclaimer.map((p) => <p>{p}</p>)}</aside>
+    )}
+    <div class="prose" id="text">
+      <Content />
+    </div>
+    <hr class="sep" />
+    {site.materials.ps && <p data-read-end>{site.materials.ps}</p>}
+    {!site.materials.ps && <span data-read-end></span>}
+    <Cta goal="cta_material" />
+    {next && <p class="meta">Следующий материал: <a href={materialUrl(next.id)}>{next.data.title}</a></p>}
+  </article>
+</Base>

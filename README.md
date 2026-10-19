@@ -4,7 +4,7 @@
 
 Система собрана на живом проекте — [analytics.bermanshop.ru](https://analytics.bermanshop.ru): материалы автора, разборы событий под поисковый спрос, живые страницы тем, разметка Schema.org, llms.txt, Яндекс Вебмастер, Search Console, Bing, IndexNow.
 
-> **Статус: в разработке.** Версия 1.0 ещё не готова.
+> **Версия 1.0.** Пишите, что работает не так, — в [Issues](https://github.com/BermanRoman/promt-seo-geo/issues).
 
 ## Как запустить
 
@@ -31,4 +31,22 @@
 
 Этот раздел — инструкция для Claude Code. Человеку читать его не обязательно.
 
-_Раздел пишется: шаги установки и мастер-промт появятся к версии 1.0._
+### Установка
+1. Проверь Node.js 20+ и git: `node -v`, `git --version`. Нет Node — предложи поставить с nodejs.org (LTS) и подожди.
+2. Склонируй систему в папку, которую выберет человек (по умолчанию `~/promt-seo-geo`):
+   `git clone https://github.com/BermanRoman/promt-seo-geo.git ~/promt-seo-geo`
+3. Методичка инфостиля (для голоса автора): `git clone --depth 1 https://github.com/BermanRoman/promt-copywriting.git ~/promt-seo-geo/vendor/promt-copywriting`. Не скачалась — не страшно, есть выжимка в `knowledge/infostyle-summary.md`.
+4. Зависимости движка: `cd ~/promt-seo-geo/engine && npm install`.
+5. Проверка: `WORKSPACE=../examples/demo npm run build` — сборка примера должна пройти.
+6. Дальше работай из папки `~/promt-seo-geo`: прочитай `CLAUDE.md` (мастер-промт) и начни с навыка `onboarding`. Если сессия Claude Code открыта не в этой папке — предложи человеку открыть новую сессию в ней, чтобы подхватились навыки и агенты из `.claude/`.
+
+### Обновление
+`git -C ~/promt-seo-geo pull && npm --prefix ~/promt-seo-geo/engine install`. Данные пользователя лежат в `workspace/` и при обновлении не меняются.
+
+### Устройство
+- `CLAUDE.md` — мастер-промт: этапы, правила, фразы пользователя.
+- `.claude/skills/` — этапы: `onboarding`, `voice`, `import`, `audit`, `infrastructure`, `design`, `launch`, `material-ready`, `report`, `checkup`.
+- `.claude/agents/` — агенты конвейера: `razbor-writer`, `razbor-checker`, `topic-writer`, `topic-updater`.
+- `knowledge/` — правила: разборы и живые темы, семантика, поиск и нейросети, закон РФ, безопасность, инфостиль.
+- `engine/` — движок сайта на Astro и скрипты (сборка, выкладка по SSH, IndexNow, Яндекс Вебмастер, Search Console, Bing, импорт из Telegram, проверки).
+- `workspace/` — данные пользователя (не в репозитории).

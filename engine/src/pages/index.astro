@@ -1,0 +1,29 @@
+---
+// Главная — архив материалов автора, свежие выше, и ссылки на разделы.
+import Base from '../layouts/Base.astro';
+import Cta from '../components/Cta.astro';
+import { site, getMaterials, materialUrl, formatDate, authorLd } from '../lib/site';
+
+const list = await getMaterials();
+const jsonld = [
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: site.name, url: site.url, inLanguage: site.lang, author: authorLd },
+  { '@context': 'https://schema.org', '@type': 'Blog', name: site.name, url: site.url, description: site.description, author: authorLd, inLanguage: site.lang,
+    ...(list.length ? { dateModified: new Date(Math.max(...list.map((m) => (m.data.updated ?? m.data.date).getTime()))).toISOString() } : {}),
+    blogPost: list.slice(0, 50).map((m) => ({ '@type': 'Article', headline: m.data.title, url: `${site.url}${materialUrl(m.id)}`, datePublished: m.data.date.toISOString() })) },
+];
+---
+<Base title={site.name} description={site.description} jsonld={jsonld}>
+  <header class="page-head">
+    <h1>{site.name}</h1>
+    <p class="lead">{site.description}</p>
+  </header>
+  <ul class="list">
+    {list.map((m) => (
+      <li>
+        <a href={materialUrl(m.id)}>{m.data.title}</a>
+        <div class="meta">{formatDate(m.data.date)}{m.data.topics.length > 0 && <> · {m.data.topics.slice(0, 3).join(' · ')}</>}</div>
+      </li>
+    ))}
+  </ul>
+  <Cta goal="cta_home" />
+</Base>

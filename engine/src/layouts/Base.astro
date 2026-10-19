@@ -1,0 +1,80 @@
+---
+// Каркас любой страницы: мета-теги, Open Graph, разметка, иконки, подвал, Яндекс Метрика (если указан счётчик).
+import '@theme';
+import '../styles/base.css';
+import { site } from '../lib/site';
+import { ogFile } from '../lib/og.mjs';
+
+interface Props {
+  title: string;
+  description: string;
+  type?: 'website' | 'article';
+  published?: Date;
+  jsonld?: object[];
+  image?: string;     // своя OG-картинка страницы (путь от корня сайта)
+  noindex?: boolean;
+  ogTitle?: string;   // заголовок превью, если он не совпадает с <title>
+}
+const { title, description, type = 'website', published, jsonld = [], image, noindex = false, ogTitle } = Astro.props;
+const ogImage = new URL(image ?? `/og/${ogFile.default(site.ogVersion)}`, site.url).href;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+// метрика только на настоящем домене: локальный просмотр и превью в статистику не попадают
+const hostRe = `(^|\\.)${site.host.replace(/\./g, '\\.')}$`;
+---
+<!doctype html>
+<html lang={site.lang} prefix="og: https://ogp.me/ns# article: https://ogp.me/ns/article#">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={(!site.indexing || noindex) ? 'noindex, nofollow' : 'max-image-preview:large'} />
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={ogTitle ?? title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {published && <meta property="article:published_time" content={published.toISOString()} />}
+    {site.googleVerification && <meta name="google-site-verification" content={site.googleVerification} />}
+    {site.yandexVerification && <meta name="yandex-verification" content={site.yandexVerification} />}
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-120.png" type="image/png" sizes="120x120" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    {jsonld.map((j) => <script type="application/ld+json" set:html={JSON.stringify(j)} />)}
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip" href="#main">К содержанию</a>
+    <main class="wrap" id="main">
+      <slot />
+    </main>
+    <footer class="site-foot wrap">
+      <nav aria-label="Разделы сайта">
+        <a href="/">Материалы</a> · <a href="/explained/">Разборы</a> · <a href="/topics/">Темы</a>{site.rubrics.length > 0 && <> · <a href="/rubrics/">Рубрики</a></>} · <a href="/author/">Об авторе</a>
+      </nav>
+    </footer>
+    {site.metrikaId && (
+      <script is:inline define:vars={{ id: site.metrikaId, hostRe }}>
+        (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();if(!new RegExp(hostRe).test(location.hostname))return;
+        for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+        (window,document,'script','https://mc.yandex.ru/metrika/tag.js','ym');
+        ym(id,'init',{webvisor:true,clickmap:true,accurateTrackBounce:true,trackLinks:true});
+        document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(a&&a.dataset.goal)ym(id,'reachGoal',a.dataset.goal);});
+        // read_to_end — долистал до конца материала; read — дошёл до конца не раньше чем через 3 минуты (прочитал, а не пролистал)
+        var end=document.querySelector('[data-read-end]'),t0=Date.now(),seen=false,read=false;
+        if(end&&'IntersectionObserver' in window){var io=new IntersectionObserver(function(es){if(!es[0].isIntersecting)return;
+          if(!seen){seen=true;ym(id,'reachGoal','read_to_end');}
+          if(!read&&Date.now()-t0>=180000){read=true;ym(id,'reachGoal','read');io.disconnect();}});io.observe(end);}
+      </script>
+    )}
+  </body>
+</html>

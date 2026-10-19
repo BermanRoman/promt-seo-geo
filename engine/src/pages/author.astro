@@ -1,0 +1,30 @@
+---
+// Страница автора: текст — workspace/author.md, голосом автора; разметка ProfilePage + Person.
+// sameAs — публичные профили, по которым поисковики и нейросети связывают автора с его материалами.
+import { getEntry, render } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Cta from '../components/Cta.astro';
+import { site, authorLd } from '../lib/site';
+
+const entry = await getEntry('author', 'author');
+const rendered = entry ? await render(entry) : null;
+const a = site.author;
+const person = {
+  ...authorLd,
+  ...(a.location ? { homeLocation: { '@type': 'Place', name: a.location } } : {}),
+  ...(a.knowsAbout?.length ? { knowsAbout: a.knowsAbout } : {}),
+};
+const jsonld = [{ '@context': 'https://schema.org', '@type': 'ProfilePage', ...(a.updated ? { dateModified: new Date(a.updated).toISOString() } : {}), mainEntity: person }];
+const desc = (a.bio ? `${a.name} — ${a.bio}` : `${a.name} — автор сайта «${site.name}».`).slice(0, 160);
+---
+<Base title={`${a.name} — об авторе`} description={desc} jsonld={jsonld}>
+  <header class="page-head">
+    {a.photo && <img class="author-photo" src={a.photo} width="440" height="550" alt={a.name} />}
+    <h1>{a.name}</h1>
+    {a.jobTitle && <p class="lead">{a.jobTitle}</p>}
+  </header>
+  <div class="prose">
+    {rendered ? <rendered.Content /> : <p>{a.bio}</p>}
+  </div>
+  <Cta goal="cta_author" />
+</Base>

@@ -1,0 +1,23 @@
+---
+// Все рубрики: описание и сколько в каждой тем и разборов. Пустые рубрики не показываются.
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { site, plural, rubricUrl } from '../../lib/site';
+
+const all = await getCollection('explained', (e) => !e.data.draft);
+const rows = site.rubrics.map((r) => {
+  const items = all.filter((e) => e.data.rubric === r.slug);
+  const topics = items.filter((e) => e.data.kind === 'topic').length;
+  return { ...r, topics, events: items.length - topics };
+}).filter((r) => r.topics + r.events > 0);
+const count = (r: { topics: number; events: number }) => [
+  r.topics ? `${r.topics} ${plural(r.topics, 'тема', 'темы', 'тем')}` : '',
+  r.events ? `${r.events} ${plural(r.events, 'разбор', 'разбора', 'разборов')}` : '',
+].filter(Boolean).join(' · ');
+const jsonld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Рубрики', url: `${site.url}/rubrics/`, inLanguage: site.lang,
+  mainEntity: { '@type': 'ItemList', itemListElement: rows.map((r, i) => ({ '@type': 'ListItem', position: i + 1, url: `${site.url}${rubricUrl(r.slug)}`, name: r.title })) } }];
+---
+<Base noindex={rows.length === 0} jsonld={jsonld} title={`Рубрики — ${site.name}`} description={`Разборы и темы по рубрикам: ${site.rubrics.map((r) => r.title.toLowerCase()).join(', ')}.`.slice(0, 160)}>
+  <header class="page-head"><h1>Рубрики</h1></header>
+  <ul class="list">{rows.map((r) => (<li><a href={rubricUrl(r.slug)}>{r.title}</a><div class="meta">{count(r)}</div></li>))}</ul>
+</Base>

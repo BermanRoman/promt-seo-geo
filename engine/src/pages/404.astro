@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import { site } from '../lib/site';
+---
+<Base title="Страница не найдена" description={`Такой страницы нет. Все материалы — на главной сайта «${site.name}».`} noindex>
+  <header class="page-head">
+    <h1>Такой страницы нет</h1>
+    <p class="lead">Возможно, адрес изменился. Все материалы — <a href="/" data-goal="not_found_to_home">на главной</a>.</p>
+  </header>
+</Base>

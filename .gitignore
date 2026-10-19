@@ -5,3 +5,8 @@ workspace/
 node_modules/
 dist/
 .DS_Store
+vendor/
+examples/demo/public/
+examples/demo/.deploy/
+examples/demo/данные/
+engine/.astro/

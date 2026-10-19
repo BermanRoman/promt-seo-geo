@@ -1,0 +1,10 @@
+---
+import { getCollection } from 'astro:content';
+import Razbor from '../../components/Razbor.astro';
+
+export async function getStaticPaths() {
+  return (await getCollection('explained', (e) => !e.data.draft && e.data.kind === 'event')).map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+---
+<Razbor entry={entry} />
