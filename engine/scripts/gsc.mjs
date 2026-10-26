@@ -3,7 +3,7 @@
 // Вход — сервисный аккаунт: ключ workspace/.secrets/gsc.json (в git не попадает), аккаунт добавлен в Search Console с правами «Полный».
 //   node scripts/gsc.mjs status            — доступ к ресурсу, карты сайта и их статус.
 //   node scripts/gsc.mjs sitemap           — отправить sitemap-index.xml (повторная отправка безопасна).
-//   node scripts/gsc.mjs stats             — снимок за 28 дней (запросы, страницы) в workspace/данные/google/<дата>.json; раз в день.
+//   node scripts/gsc.mjs stats             — снимок за 28 дней (запросы, страницы, пары «запрос × страница») в workspace/данные/google/<дата>.json; раз в день.
 //   node scripts/gsc.mjs inspect [url…]    — в индексе ли страницы; без адресов — все страницы из dist/ (лимит Google 2000 в день).
 // Попросить Google проиндексировать обычную страницу через API нельзя (Indexing API — только вакансии и трансляции).
 import fs from 'node:fs';
@@ -71,19 +71,20 @@ async function sitemap() {
   console.log(`sitemap отправлен: ${sitemapUrl}`);
 }
 
-// снимок за 28 дней по сайту: запросы и страницы; Google отдаёт данные с задержкой 2–3 дня
+// снимок за 28 дней по сайту: запросы, страницы и пары «запрос × страница» (pairs — для будущей проверки каннибализации:
+// по каким запросам показываются две страницы сайта и больше); Google отдаёт данные с задержкой 2–3 дня
 export async function stats({ quiet = false } = {}) {
   const today = mskDate(Date.now());
   const file = path.join(DATA, `${today}.json`);
   if (fs.existsSync(file) && process.env.FORCE !== '1') { if (!quiet) console.log(`снимок Google за ${today} уже есть`); return false; }
   const end = mskDate(Date.now() - 2 * 864e5), start = mskDate(Date.now() - 30 * 864e5);
   const onHost = [{ filters: [{ dimension: 'page', operator: 'contains', expression: `//${HOST}/` }] }];
-  const q = (dimensions) => call('POST', `${V3}/searchAnalytics/query`, { startDate: start, endDate: end, dimensions, dimensionFilterGroups: onHost, rowLimit: 1000 });
-  const [queries, pages, total] = await Promise.all([q(['query']), q(['page']), q([])]);
+  const q = (dimensions, rowLimit = 1000) => call('POST', `${V3}/searchAnalytics/query`, { startDate: start, endDate: end, dimensions, dimensionFilterGroups: onHost, rowLimit });
+  const [queries, pages, pairs, total] = await Promise.all([q(['query']), q(['page']), q(['query', 'page'], 5000), q([])]);
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ date: today, period: [start, end], host: HOST, total: total.rows?.[0] || null, queries: queries.rows || [], pages: pages.rows || [] }, null, 1));
+  fs.writeFileSync(file, JSON.stringify({ date: today, period: [start, end], host: HOST, total: total.rows?.[0] || null, queries: queries.rows || [], pages: pages.rows || [], pairs: pairs.rows || [] }, null, 1));
   const t = total.rows?.[0];
-  console.log(`Google: снимок → workspace/данные/google/${today}.json (${start}…${end}: показов ${t?.impressions ?? 0}, кликов ${t?.clicks ?? 0})`);
+  console.log(`Google: снимок → workspace/данные/google/${today}.json (${start}…${end}: показов ${t?.impressions ?? 0}, кликов ${t?.clicks ?? 0}, пар «запрос × страница» ${pairs.rows?.length ?? 0})`);
   return true;
 }
 

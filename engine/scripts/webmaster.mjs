@@ -2,7 +2,8 @@
 //   node scripts/webmaster.mjs setup  — добавить сайт, подтвердить файлом yandex_<код>.html, отправить sitemap.
 //                                       Запускать, пока не скажет «готово»: после создания файла нужна заливка (npm run deploy).
 //   node scripts/webmaster.mjs status — подтверждён ли сайт, sitemap, квота переобхода, страницы в поиске, проблемы.
-//   node scripts/webmaster.mjs stats  — снимок статистики в workspace/данные/вебмастер/<дата>.json (раз в день; post-deploy зовёт сам).
+//   node scripts/webmaster.mjs stats  — снимок статистики и пар «запрос × страница» в workspace/данные/вебмастер/<дата>.json
+//                                       (раз в день; post-deploy зовёт сам).
 // Переобход изменённых страниц после каждой заливки — в post-deploy.mjs (очередь webmaster в workspace/.deploy/queue.json).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,16 +79,65 @@ async function status(wm) {
 
 const mskDate = localDate;   // сутки в отчётах Вебмастера — московские
 
-// снимок за последние 7 дней; если сегодняшний уже есть — ничего не делает (FORCE=1 — перезаписать)
+// сумма показов, кликов и спроса за период и средняя позиция, взвешенная по показам (statistics — по дням и полям)
+function total(statistics = []) {
+  const day = {};
+  for (const { date, field, value } of statistics) (day[date] ??= {})[field] = value;
+  let impressions = 0, clicks = 0, demand = 0, posW = 0;
+  for (const d of Object.values(day)) {
+    impressions += d.IMPRESSIONS || 0; clicks += d.CLICKS || 0; demand += d.DEMAND || 0;
+    if (d.IMPRESSIONS && d.POSITION) posW += d.POSITION * d.IMPRESSIONS;
+  }
+  return { impressions, clicks, demand, position: impressions ? Math.round((posW / impressions) * 10) / 10 : null };
+}
+
+// пары «запрос × страница» из «Мониторинга запросов» (query-analytics/list, последние 2 недели) — для будущей проверки
+// каннибализации. Готовой выгрузки пар в API нет: строка с text_indicator=URL несёт только самый частый запрос страницы,
+// строка с QUERY — самую частую страницу запроса. Поэтому: список страниц, затем по каждой странице её запросы
+// (filters.text_filters: URL TEXT_MATCH; адрес страницы в API — путь вида /about/). Фильтр проверен на живых данных:
+// каждая страница возвращает только свои запросы. Если когда-нибудь все страницы вернут один и тот же полный список
+// запросов — фильтр перестал работать: pairsCheck это отметит.
+async function queryPairs(wm) {
+  // строка без text_indicator.value пропускается: сбой формата не должен ронять post-deploy (он ловит только WmError)
+  const val = (r) => r?.text_indicator?.value;
+  const pages = (await wm.queryAnalytics({ text_indicator: 'URL' })).filter(val);
+  const queries = (await wm.queryAnalytics({ text_indicator: 'QUERY' })).filter(val);
+  const pairs = [], perPage = [];
+  for (let i = 0; i < pages.length; i += 5) {   // по 5 страниц параллельно: у сайта на 100+ страниц снимок не тянется минутами
+    const batch = pages.slice(i, i + 5).map(val);
+    const res = await Promise.all(batch.map((url) => wm.queryAnalytics({ text_indicator: 'QUERY', filters: { text_filters: [{ text_indicator: 'URL', operation: 'TEXT_MATCH', value: url }] } })));
+    res.forEach((rows, k) => {
+      perPage.push(rows.length);
+      for (const r of rows.filter(val)) pairs.push({ query: val(r), url: batch[k], ...total(r.statistics) });
+    });
+  }
+  const suspect = pages.length > 1 && queries.length > 1 && perPage.every((n) => n === queries.length);
+  return {
+    pages: pages.map((r) => ({ url: val(r), topQuery: r.popular_complementary_indicator?.value ?? null, ...total(r.statistics) })),
+    queries: queries.map((r) => ({ query: val(r), topUrl: r.popular_complementary_indicator?.value ?? null, ...total(r.statistics) })),
+    pairs,
+    pairsCheck: suspect ? 'фильтр по URL, похоже, не сработал: у всех страниц полный список запросов — пары не использовать' : 'ok',
+  };
+}
+
+// снимок: сводка, диагностика и популярные запросы за 7 дней + «Мониторинг запросов» за 2 недели (queryAnalytics);
+// если сегодняшний уже есть — ничего не делает (FORCE=1 — перезаписать).
+// Каждая часть берётся отдельно: пока Вебмастер не «загрузил» сайт, summary и search-queries отвечают 404 HOST_NOT_LOADED
+// (у нового сайта это бывает неделями, и снимков не было бы вовсе), а мониторинг запросов уже работает. Такая часть пишется как { error }.
 export async function stats(wm, { quiet = false } = {}) {
   const today = mskDate(Date.now());
   const file = path.join(STATS_DIR, `${today}.json`);
   if (fs.existsSync(file) && process.env.FORCE !== '1') { if (!quiet) console.log(`снимок за ${today} уже есть`); return false; }
   const from = mskDate(Date.now() - 7 * 864e5);
-  const [summary, diagnostics, queries] = await Promise.all([wm.summary(), wm.diagnostics(), wm.queries(from, today)]);
+  const part = (p) => p.catch((e) => {
+    if (!(e instanceof WmError) || e.status !== 404) throw e;
+    return { error: e.message.slice(e.message.indexOf(': ') + 2) };   // без пути запроса: в нём user_id
+  });
+  const [summary, diagnostics, queries, queryAnalytics] = await Promise.all([part(wm.summary()), part(wm.diagnostics()), part(wm.queries(from, today)), part(queryPairs(wm))]);
   fs.mkdirSync(STATS_DIR, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ date: today, period: [from, today], summary, diagnostics, queries }, null, 1));
-  console.log(`Вебмастер: снимок статистики → workspace/данные/вебмастер/${today}.json`);
+  fs.writeFileSync(file, JSON.stringify({ date: today, period: [from, today], summary, diagnostics, queries, queryAnalytics }, null, 1));
+  const n = (x) => (x.error ? x.error.split(' ').slice(0, 2).join(' ') : 'есть');
+  console.log(`Вебмастер: снимок статистики → workspace/данные/вебмастер/${today}.json (сводка: ${n(summary)}; запросы: ${n(queries)}; пар «запрос × страница»: ${queryAnalytics.error ? n(queryAnalytics) : `${queryAnalytics.pairs.length}, страниц ${queryAnalytics.pages.length}, запросов ${queryAnalytics.queries.length}`})`);
   return true;
 }
 

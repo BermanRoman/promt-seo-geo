@@ -1,4 +1,4 @@
-// Клиент API Яндекс Вебмастера v4 (https://yandex.ru/dev/webmaster/doc/ru/): сайт, подтверждение, sitemap, переобход, статистика.
+// Клиент API Яндекс Вебмастера v4 (https://yandex.ru/dev/webmaster/doc/ru/): сайт, подтверждение, sitemap, переобход, статистика, мониторинг запросов.
 // Токен — YANDEX_WEBMASTER_TOKEN в workspace/.env (права webmaster:hostinfo и webmaster:verify), в код и в git не попадает.
 // host_id вида https:example.ru:443 идёт в путь как есть (двоеточия в пути допустимы, так в документации).
 // user_id и host_id запоминаются в workspace/.deploy/webmaster.json, чтобы не спрашивать их при каждой заливке.
@@ -84,6 +84,17 @@ export function webmaster({ token, siteUrl, stateFile, timeout = 15000 }) {
       const q = new URLSearchParams({ order_by: 'TOTAL_SHOWS', date_from: dateFrom, date_to: dateTo });
       for (const i of ['TOTAL_SHOWS', 'TOTAL_CLICKS', 'AVG_SHOW_POSITION', 'AVG_CLICK_POSITION']) q.append('query_indicator', i);
       return api('GET', `${await hostPath()}/search-queries/popular?${q}`);
+    },
+    // «Мониторинг запросов» (POST query-analytics/list): данные за последние 2 недели, все строки страницами по 500 (не больше 10 000)
+    async queryAnalytics(body) {
+      const hp = await hostPath(), rows = [];
+      for (let offset = 0; offset < 10000; offset += 500) {
+        const r = await api('POST', `${hp}/query-analytics/list`, { ...body, offset, limit: 500 });
+        const page = r.text_indicator_to_statistics || [];
+        rows.push(...page);
+        if (!page.length || rows.length >= (r.count || 0)) break;
+      }
+      return rows;
     },
   };
 }

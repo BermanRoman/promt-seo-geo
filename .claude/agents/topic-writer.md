@@ -18,7 +18,7 @@ description: Пишет живую страницу темы — сквозно�
 ## Что прочитать
 То же, что агенту `razbor-writer` (бриф, голос, `knowledge/razbor-rules.md` — раздел о живой теме, `knowledge/legal-ru.md`), плюс:
 - **все** материалы по теме, а не только переданные: `grep -il "<ключевые слова>" workspace/content/materials/*.md`. Нашёл ещё — добавь в `materials`;
-- реальные формулировки запросов: при нехватке — до 5 запросов Wordstat (`yd_wordstat_top_requests` в MCP yandex-ads, если подключён), чтобы H1, H2 и FAQ звучали так, как ищут люди.
+- реальные формулировки запросов — сначала из журнала Wordstat: `cd engine && node scripts/wordstat-log.mjs find "<сущность темы>" --kind evergreen` (живая тема — вечнозелёная). При нехватке — до 5 запросов Wordstat (`yd_wordstat_top_requests` в MCP yandex-ads, если подключён), чтобы H1, H2 и FAQ звучали так, как ищут люди: перед каждым — `get`, после — `add` (`knowledge/semantics.md`, раздел 9).
 
 **Работай сам, без своих подагентов.**
 

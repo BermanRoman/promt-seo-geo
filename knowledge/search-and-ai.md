@@ -69,14 +69,15 @@
 
 | Движок | Откуда источники | Боты (robots) |
 |---|---|---|
-| Google AI Overviews / AI Mode | Индекс Google | Googlebot; `Google-Extended` на AIO не влияет, влияет на приложение Gemini |
-| ChatGPT search | Сторонние провайдеры (в том числе Bing) + собственный индекс | `OAI-SearchBot` (поиск), `ChatGPT-User` (по запросу пользователя), `GPTBot` (обучение) |
+| Google AI Overviews / AI Mode | Индекс Google | Googlebot; `Google-Extended` на Поиск и AIO не влияет, влияет на приложение Gemini |
+| Gemini (приложение), Vertex AI | Google, grounding | `Google-Extended` — токен robots.txt, своего обходчика нет (страницы берёт обычный обход Google): обучение моделей Gemini и подстановка страниц в ответы приложения Gemini и Grounding with Google Search на Vertex AI; на Поиск не влияет [офиц.](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
+| ChatGPT search | Сторонние провайдеры (в том числе Bing) + собственный индекс | `OAI-SearchBot` (поиск ChatGPT: запрет убирает сайт из ответов поиска), `GPTBot` (обучение), `ChatGPT-User` (заходы по просьбе пользователя; robots.txt к нему может не применяться, для поиска не используется), `OAI-AdsBot` (проверка посадочных страниц рекламы в ChatGPT). Если открыты и GPTBot, и OAI-SearchBot, OpenAI может обойти страницу один раз для обеих целей [офиц.](https://developers.openai.com/api/docs/bots) |
 | Perplexity | Собственный индекс | `PerplexityBot`; `Perplexity-User` может не соблюдать robots |
 | Copilot | Индекс Bing | bingbot |
 | Claude | Веб-поиск через Brave Search (в списке субпроцессоров с 03.2025) [вторич.] | `ClaudeBot`, `Claude-SearchBot`, `Claude-User` |
-| Алиса AI | Индекс Яндекса | `YandexAdditional` |
+| Алиса AI | Индекс Яндекса | YandexBot (индекс). `YandexAdditional` / `YandexAdditionalBot` — только правило robots.txt: ограничивает показ страниц в ответах Алисы и быстрых ответах YandexGPT, сам сайт не обходит [офиц.](https://yandex.ru/support/webmaster/ru/robot-workings/check-yandex-robots.md) |
 
-Всех этих ботов система пускает: закрыть их — значит не попасть в цитаты.
+Всех этих ботов система пускает: закрыть их — значит не попасть в цитаты. Закрыть `GPTBot` — отказаться от обучения моделей OpenAI; закрыть `Google-Extended` — уйти не только из обучения Gemini, но и из ответов приложения Gemini.
 
 **Какие страницы цитируют** (данные исследований и вендоров, это корреляции, а не причины):
 - Сильнее всего видимость в генеративных ответах поднимали цитаты, статистика и ссылки на источники; набивка ключами не помогает [академ., лабораторный эксперимент].
