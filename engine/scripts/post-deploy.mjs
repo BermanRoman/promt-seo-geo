@@ -116,7 +116,11 @@ if (env.INDEXNOW_KEY && inUrls.length) {
   for (const ep of ['https://api.indexnow.org/indexnow']) {
     try {
       const r = await fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body, signal: AbortSignal.timeout(20000) });
-      console.log(`IndexNow ${new URL(ep).host}: ${r.status}`);
+      // 200 — приняли, 202 — ключ ещё проверяют, но адреса уже у них; иначе печатаем ответ, чтобы была видна причина
+      const why = r.status < 300 ? '' : ` ${(await r.text().catch(() => '')).slice(0, 200)}`;
+      // 403 — ключ не подходит к хосту: у каждого сайта и поддомена свой ключ и свой файл <ключ>.txt в корне
+      const hint = r.status === 403 ? ' — ключ не принят: у этого сайта должен быть свой ключ (node scripts/doctor.mjs indexnow) и файл ключа на сайте' : '';
+      console.log(`IndexNow ${new URL(ep).host}: ${r.status}${why}${hint}`);
       if (r.status < 300) accepted = true;
     } catch (e) {
       console.log(`IndexNow ${new URL(ep).host}: ошибка ${e.message}`);

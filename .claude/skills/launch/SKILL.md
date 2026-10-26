@@ -17,7 +17,7 @@ description: Первая выкладка сайта — разборы по а
 1. `site.config.json` → `indexing: true`.
 2. `cd engine && npm run deploy` (сборка, заливка, IndexNow, переобход в Вебмастере, архив).
 3. Проверить живой сайт: главная, материал, разбор отвечают 200; `robots.txt` открыт; `sitemap-index.xml` отдаётся; у страниц нет `noindex`; превью (og:image) отвечает 200.
-4. Отправить карты сайта: `node scripts/gsc.mjs sitemap`, `node scripts/bing.mjs sitemap` (если есть ключи API); Bing на старте не знает сайт — `node scripts/bing.mjs submit`.
+4. Отправить карты сайта: `node scripts/gsc.mjs sitemap`, `node scripts/bing.mjs sitemap` (если есть ключи API); Bing на старте не знает сайт — `node scripts/bing.mjs submit`. Переобход в Яндексе (API или вручную в Вебмастере) отправлять один раз: он идёт в пределах бюджета обхода сайта. Новый сайт Яндекс обходит быстро, а у сайта, который уже есть в Вебмастере, страницы встают в очередь — повторная отправка её не ускоряет, только тратит дневной лимит.
 5. Снимок исходной точки: `node scripts/webmaster.mjs stats`, `node scripts/gsc.mjs stats`, `node scripts/bing.mjs stats` — что есть, то и снимаем; файл `workspace/данные/исходная-точка-<дата>.md`: сколько страниц, что в индексе, первые показы. От него считается рост.
 
 ## 4. Человеку

@@ -13,7 +13,8 @@ test -n "$HOST" -a -n "$DIR" || { echo "нет DEPLOY_HOST или DEPLOY_DIR в 
 test -f dist/index.html || { echo "нет dist/ — сначала npm run build"; exit 1; }
 # защита от пустого сайта: без материалов rsync --delete стёр бы сайт на сервере
 test "$(find dist -name index.html | wc -l)" -gt 3 || { echo "в dist/ почти нет страниц — заливка остановлена"; exit 1; }
-rsync -az --delete --checksum --exclude=".well-known/" --exclude="google*.html" --exclude="yandex_*.html" dist/ "$HOST:$DIR/"
+# без -t (в отличие от -a): у файлов, которые не изменились, на сервере остаются дата и ETag — браузеры и роботы получают 304, а не всё заново
+rsync -rlpz --delete --checksum --exclude=".well-known/" --exclude="google*.html" --exclude="yandex_*.html" dist/ "$HOST:$DIR/"
 echo "залито в $HOST:$DIR"
 mkdir -p "$WS/.deploy" && date '+%Y-%m-%d %H:%M' > "$WS/.deploy/deployed"
 node scripts/post-deploy.mjs || echo "post-deploy: ошибка, публикация не затронута"
