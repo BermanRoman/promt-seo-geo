@@ -10,6 +10,8 @@ env_val() { grep -E "^$1=" "$WS/.env" 2>/dev/null | head -1 | cut -d= -f2- || tr
 HOST="${DEPLOY_HOST:-$(env_val DEPLOY_HOST)}"
 DIR="${DEPLOY_DIR:-$(env_val DEPLOY_DIR)}"
 test -n "$HOST" -a -n "$DIR" || { echo "нет DEPLOY_HOST или DEPLOY_DIR в $WS/.env — сначала навык «Инфраструктура»"; exit 1; }
+# опубликованные страницы без действующей приёмки (и не из baseline) не заливаем
+node scripts/check-acceptance.mjs --published || { echo "заливка остановлена: приёмка"; exit 1; }
 test -f dist/index.html || { echo "нет dist/ — сначала npm run build"; exit 1; }
 # защита от пустого сайта: без материалов rsync --delete стёр бы сайт на сервере
 test "$(find dist -name index.html | wc -l)" -gt 3 || { echo "в dist/ почти нет страниц — заливка остановлена"; exit 1; }
@@ -17,4 +19,6 @@ test "$(find dist -name index.html | wc -l)" -gt 3 || { echo "в dist/ почт�
 rsync -rlpz --delete --checksum --exclude=".well-known/" --exclude="google*.html" --exclude="yandex_*.html" dist/ "$HOST:$DIR/"
 echo "залито в $HOST:$DIR"
 mkdir -p "$WS/.deploy" && date '+%Y-%m-%d %H:%M' > "$WS/.deploy/deployed"
+# снимок залитой версии — база для node scripts/review-dist.mjs при следующем ревью
+node scripts/review-dist.mjs --snapshot || echo "снимок залитой версии не сохранён (не мешает заливке)"
 node scripts/post-deploy.mjs || echo "post-deploy: ошибка, публикация не затронута"

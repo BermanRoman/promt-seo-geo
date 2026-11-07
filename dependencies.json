@@ -1,0 +1,11 @@
+{
+  "dependencies": [
+    {
+      "name": "promt-copywriting",
+      "url": "https://github.com/BermanRoman/promt-copywriting.git",
+      "revision": "bb091b6003f836106d09ed2bd5e91a8fb5d961dd",
+      "files": ["prompt-copywriter.md", "methodology-copywriting.md", "workflow.md", "roles/editorial.md"],
+      "purpose": "Канон копирайтинга для голоса автора и вычитки (roles/copy-editor.md); голос конкретного автора — в workspace/voice.md, не в этой зависимости."
+    }
+  ]
+}

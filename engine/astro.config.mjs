@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse } from 'yaml';
 import { loadSite, ws, ENGINE } from './src/lib/workspace.mjs';
 
 const site = loadSite();
@@ -9,21 +10,27 @@ const site = loadSite();
 // Даты для sitemap (lastmod): материал — дата правки или публикации, разбор и тема — тоже; рубрика и списки —
 // по самому свежему, что в них есть.
 const lastmod = {};
-const fmDate = (s, key) => s.match(new RegExp(`^${key}:\\s*"?(\\d{4}-\\d{2}-\\d{2})`, 'm'))?.[1];
+// frontmatter читает настоящий YAML-парсер: кавычки, комментарии и даты в любом допустимом виде
+const day = (v) => (v instanceof Date ? v.toISOString() : String(v ?? '')).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
 const readDir = (dir, fn) => fs.existsSync(dir) && fs.readdirSync(dir).filter((f) => f.endsWith('.md'))
-  .forEach((f) => fn(f.replace(/\.md$/, ''), fs.readFileSync(path.join(dir, f), 'utf8')));
-readDir(ws('content/materials'), (slug, s) => {
-  if (/^draft:\s*true/m.test(s)) return;
-  const d = fmDate(s, 'updated') || fmDate(s, 'date');
+  .forEach((f) => {
+    const source = fs.readFileSync(path.join(dir, f), 'utf8');
+    let data;
+    try { data = parse(source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? '') ?? {}; } catch (e) { throw new Error(`${f}: невалидный YAML во frontmatter (${e.message.split('\n')[0]})`); }
+    fn(f.replace(/\.md$/, ''), data);
+  });
+readDir(ws('content/materials'), (slug, data) => {
+  if (data.draft === true) return;
+  const d = day(data.updated) || day(data.date);
   if (d) lastmod[`${site.url}/${site.materials.path}/${slug}/`] = d;
 });
-readDir(ws('content/explained'), (slug, s) => {
-  if (!/^draft:\s*false/m.test(s)) return;
-  const topic = /^kind:\s*"?topic"?\s*$/m.test(s);
-  const d = fmDate(s, 'updated') || fmDate(s, 'published');
+readDir(ws('content/explained'), (slug, data) => {
+  if (data.draft !== false) return;
+  const d = day(data.updated) || day(data.published);
   if (!d) return;
-  lastmod[`${site.url}/${topic ? 'topics' : 'explained'}/${slug}/`] = d;
-  const rubric = s.match(/^rubric:\s*"?([a-z0-9-]+)"?/m)?.[1];
+  lastmod[`${site.url}/${data.kind === 'topic' ? 'topics' : 'explained'}/${slug}/`] = d;
+  // страница рубрики обновляется вместе с самым свежим своим разбором или темой
+  const rubric = typeof data.rubric === 'string' && /^[a-z0-9-]+$/.test(data.rubric) ? data.rubric : '';
   const ru = rubric && `${site.url}/rubrics/${rubric}/`;
   if (ru && !(lastmod[ru] > d)) lastmod[ru] = d;
 });

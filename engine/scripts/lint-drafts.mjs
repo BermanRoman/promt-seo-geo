@@ -1,13 +1,15 @@
 // Прорабская проверка страниц перед публикацией: жёсткие правила, которые проверяются без чтения глазами.
 //   node scripts/lint-drafts.mjs                 — все черновики и обновления из _pending
 //   node scripts/lint-drafts.mjs slug-1 slug-2   — конкретные страницы (в том числе опубликованные)
-//   node scripts/lint-drafts.mjs --links …       — плюс доступность каждой ссылки (curl с этого компьютера)
+//   node scripts/lint-drafts.mjs --links …       — плюс доступность каждой ссылки (curl с этого компьютера); число проверенных
+//                                                  должно совпасть с числом найденных, иначе ошибка
 // Выход 1, если есть ошибки (публиковать нельзя); «внимание» — на усмотрение прораба.
 // Правила — knowledge/razbor-rules.md и knowledge/legal-ru.md; свои запрещённые слова и домены — workspace/lint.json:
 // { "bannedDomains": [...], "bannedWords": [...] }.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
 import { val, list, explainerMeta } from './lib/frontmatter.mjs';
 import { ws, loadSite } from '../src/lib/workspace.mjs';
 
@@ -55,6 +57,15 @@ for (const file of files) {
   const err = [], warn = [];
 
   if (!fmMatch) err.push('нет frontmatter');
+  else {
+    // скрипты читают frontmatter упрощённо, а сборка — настоящим YAML: невалидный YAML ломает сборку, останавливаем до неё
+    try {
+      const parsed = parseYaml(fm);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) err.push('frontmatter должен быть YAML-объектом');
+    } catch (error) {
+      err.push(`невалидный YAML: ${error.message.split('\n')[0]}`);
+    }
+  }
   const hidden = src.match(HIDDEN); if (hidden) err.push(`скрытые символы: ${hidden.length}`);
   if (AI_MARKS.test(src)) err.push(`пометка ИИ: «${src.match(AI_MARKS)[0]}»`);
   if (site.region === 'ru' && VPN.test(body + fm)) err.push(`VPN/обход блокировок: «${(body + fm).match(VPN)[0]}»`);
@@ -100,7 +111,11 @@ for (const file of files) {
       else if (kind === 'topic' && s !== meta.material && !meta.materials.includes(s)) warn.push(`ссылка на материал «${s}», которого нет в materials`);
     } else err.push(`ссылка на другую страницу сайта: ${href} — разбор ведёт только на материалы`);
   }
-  if (kind !== 'topic' && !own.some((h) => h.startsWith(`${mPath}${meta.material}/`))) warn.push(`в тексте нет ссылки на материал-основу ${mPath}${meta.material}/`);
+  // переход к материалу даёт шаблон внизу страницы: в теле разбора ссылки на материал нет,
+  // у живой темы ссылки только в эпизодах, а «Что это значит?» читается без ссылок (knowledge/razbor-rules.md)
+  if (kind !== 'topic' && own.some((h) => h.startsWith(mPath))) err.push('ссылка на материал в тексте разбора — переход даёт шаблон внизу страницы');
+  const meaning = body.match(/^##\s*Что это значит\?[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m);
+  if (meaning && meaning[1].includes(`](${mPath}`) || (meaning && site.url && meaning[1].includes(`](${site.url}${mPath}`))) err.push('ссылка на материал в «Что это значит?» — блок читается сам по себе');
 
   const n = words(body).length;
   const [min, max] = kind === 'topic' ? [1200, file.startsWith(PENDING) ? 3000 : 2500] : [500, 1200];
@@ -130,12 +145,25 @@ for (const file of files) {
 }
 
 if (checkLinks && allUrls.size) {
-  let bad = 0;
+  // тихий успех недопустим: число проверенных ссылок должно совпасть с числом найденных
+  const checked = [];
   for (const [u, slug] of allUrls) {
     let code = '000';
-    try { code = execFileSync('curl', ['-s', '-o', '/dev/null', '-m', '15', '-L', '-A', 'Mozilla/5.0', '-w', '%{http_code}', u], { encoding: 'utf8' }); } catch {}
-    if (!/^(200|301|302|303|307|308|403)$/.test(code)) { bad++; console.log(`  внимание: ${code} ${u} (${slug})`); }
+    try {
+      code = execFileSync('curl', ['-s', '-o', '/dev/null', '-m', '15', '-L', '-A', 'Mozilla/5.0', '-w', '%{http_code}', u], { encoding: 'utf8' });
+    } catch (e) {
+      if (e.code === 'ENOENT') break;   // curl не запустился — ссылки не проверены
+      code = String(e.stdout || '000');  // curl завершился ошибкой связи; код вывел сам (обычно 000)
+    }
+    checked.push([code.trim(), u, slug]);
   }
-  console.log(`\nссылки: проверено ${allUrls.size}, недоступно ${bad}`);
+  const bad = checked.filter(([code]) => !/^(200|301|302|303|307|308|403)$/.test(code));
+  if (checked.length !== allUrls.size) {
+    failed = true;
+    console.log(`ошибка: проверено ${checked.length} из ${allUrls.size} ссылок`);
+  }
+  console.log(`\nссылки: проверено ${checked.length} из ${allUrls.size}, недоступно ${bad.length}`);
+  for (const [code, u] of checked) console.log(`  HTTP ${code} ${u}`);
+  for (const [code, u, slug] of bad) console.log(`  внимание: ${code} ${u} (${slug})`);
 }
 process.exit(failed ? 1 : 0);

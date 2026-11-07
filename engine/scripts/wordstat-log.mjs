@@ -1,5 +1,5 @@
 // Журнал Wordstat: результаты вызовов MCP yandex-ads (yd_wordstat_top_requests, yd_wordstat_dynamics) с датой и сроком годности.
-// Скрипт сам Wordstat не вызывает (MCP работает только через Claude) — он только журнал. Порядок для агента:
+// Скрипт сам Wordstat не вызывает — он только журнал ответов подключённого MCP. Порядок для агента:
 //   get → есть свежая запись — берём её; нет (код выхода 1) → вызов MCP → add.
 //
 //   node scripts/wordstat-log.mjs get "<фраза>" [--method top_requests (по умолчанию)|dynamics] [--kind news|evergreen]
@@ -8,6 +8,9 @@
 //   node scripts/wordstat-log.mjs add --method top_requests|dynamics --phrase "<фраза>" --kind news|evergreen|unknown
 //        --by "<материал / тема>" [--region …] [--devices …] [--period … --from … --to …] < ответ.json
 //        — ответ MCP целиком через stdin (можно только totalCount и первые 10 results). Ошибка MCP: --error "<текст>" без stdin.
+//        Ответ-ошибка, пустой ответ {} или неполный (нет явного totalCount) в журнал как данные не попадает: скрипт отказывает (код 2),
+//        сбой записывается только через --error. Нулевой спрос (zeroConfirmed) — лишь при явном totalCount: 0.
+//        Полный ответ (после разворачивания content[].text) хранится в поле response.
 //   node scripts/wordstat-log.mjs find "<часть фразы>" [--method …] [--kind …] [--region …] [--all]
 //        — поиск по фразам и топ-формулировкам (печатает и их — для H2 и FAQ); по умолчанию только свежие, --all — и просроченные;
 //        --kind, как в get, — для срока.
@@ -78,6 +81,9 @@ function parseArgs(argv) {
 // подходит ли запись под запрос get/find (метод, регион, устройства, период и диапазон динамики)
 function matches(rec, q) {
   if (rec.error) return false;
+  if (rec.method === 'top_requests' && (typeof rec.totalCount !== 'number' || !Number.isFinite(rec.totalCount) || rec.totalCount < 0)) return false;
+  // Старые версии превращали {} в 0. Без явного подтверждения нуля такой кэш не доказывает отсутствие спроса.
+  if (rec.method === 'top_requests' && rec.totalCount === 0 && !rec.top?.length && rec.zeroConfirmed !== true) return false;
   if (q.method && rec.method !== q.method) return false;
   if (q.region !== undefined && (rec.region || '') !== q.region) return false;
   if (q.devices && (rec.devices || 'all') !== q.devices) return false;
@@ -141,18 +147,35 @@ function add(pos, opt) {
   if (process.stdin.isTTY) die('stdin: нужен JSON-ответ MCP через < файл или heredoc (или --error "<текст>" для сбоя)');
   let res;
   try { res = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { die('stdin: нужен JSON-ответ MCP (или --error "<текст>" для сбоя)'); }
+  if (Array.isArray(res?.content)) {
+    const text = res.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+    if (res.isError || /^Error\b/i.test(text.trim())) die('MCP вернул ошибку: записать через --error, не как нулевой спрос');
+    try { res = JSON.parse(text); } catch { die('MCP content.text не содержит JSON: записать через --error'); }
+  }
   // ответ-ошибка API (code/message/error без данных) — не «спроса нет»: записывать через --error
-  if (!res || typeof res !== 'object' || ((res.error || res.code || res.message) && !('results' in res) && !('totalCount' in res))) {
+  if (!res || typeof res !== 'object' || Array.isArray(res) || res.isError || res.error
+      || ((res.code || res.message) && !('results' in res) && !('totalCount' in res))) {
     die('это ответ с ошибкой, а не данные: add … --error "<текст ошибки>"');
   }
-  const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+  const num = (v) => typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : null;
   if (method === 'top_requests') {
-    rec.totalCount = num(res.totalCount) ?? 0;   // пустой ответ {} — спрос ниже порога Wordstat
+    const count = num(res.totalCount);
+    if (typeof res.totalCount === 'boolean' || count === null || !Number.isFinite(count) || count < 0
+        || (res.results !== undefined && !Array.isArray(res.results))) {
+      die('неполный ответ Wordstat: нужен явный totalCount; пустой ответ не означает нулевой спрос. Записать через --error');
+    }
+    if ((res.results || []).some((x) => !x || typeof x.phrase !== 'string' || !x.phrase.trim()
+        || typeof x.count === 'boolean' || num(x.count) === null || !Number.isFinite(num(x.count)) || num(x.count) < 0)) {
+      die('неверные results Wordstat: записать через --error, не использовать как измерение');
+    }
+    rec.totalCount = count;
     rec.top = (res.results || []).slice(0, 10).map((x) => [x.phrase, num(x.count)]);
+    if (count === 0) rec.zeroConfirmed = true;
   } else {
     rec.series = (res.results || []).map((x) => [String(x.date).slice(0, 10), num(x.count)]);
     if (!rec.series.length) console.log('внимание: в ответе нет results — записан пустой ряд');
   }
+  rec.response = res;   // полный ответ как есть: top хранит только первые 10 фраз
   if (opt.note) rec.note = opt.note;
   append([rec]);
   console.log(`записано: ${rec.method} «${rec.phrase}» ${rec.kind}, годна до ${expires(rec)}`);

@@ -4,13 +4,17 @@
 //   node scripts/publish.mjs slug-1 slug-2        — конкретные страницы
 // Черновик: draft: true → false. Обновление темы (explained/_pending/<slug>.md) заменяет опубликованную страницу.
 // Снятый прорабом черновик (rejected: true) не публикуется никогда. Перед публикацией — lint-drafts.mjs:
-// при ошибках ничего не публикуется. Потом — npm run deploy.
+// при ошибках ничего не публикуется. Раньше lint — проверка реестра приёмки (acceptance.json, scripts/acceptance.mjs).
+// Потом — npm run deploy.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { explainerMeta } from './lib/frontmatter.mjs';
 import { ws } from '../src/lib/workspace.mjs';
+import { assertAcceptance } from './check-acceptance.mjs';
+import { finalRaw, sha256, readRegistry, readPublished, writePublished } from './lib/acceptance.mjs';
+import { localDate } from '../src/lib/workspace.mjs';
 
 const DIR = ws('content/explained');
 const PENDING = path.join(DIR, '_pending');
@@ -23,15 +27,33 @@ const read = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => x.
 const drafts = read(DIR).filter(([slug, , src]) => explainerMeta(src).draft && !explainerMeta(src).rejected && wanted(slug, src));
 const updates = read(PENDING).filter(([slug, , src]) => !explainerMeta(src).rejected && wanted(slug, src));
 if (!drafts.length && !updates.length) { console.log('нечего публиковать'); process.exit(0); }
+// Приёмка (workflow.md, «Реестр приёмки»): вся пачка проверяется по итоговым байтам до записи любого файла.
+// Одна страница без действующей приёмки останавливает всю пачку. Флага обхода нет.
+try {
+  assertAcceptance([...drafts.map(([slug, , src]) => ({ slug, raw: finalRaw(src), kind: 'draft' })), ...updates.map(([slug, , src]) => ({ slug, raw: finalRaw(src), kind: 'pending' }))]);
+} catch (error) {
+  console.error(`${error.message}\n\nприёмка не действует — ничего не опубликовано`);
+  process.exit(1);
+}
 try {
   execFileSync('node', [path.join(path.dirname(fileURLToPath(import.meta.url)), 'lint-drafts.mjs'), ...new Set([...drafts, ...updates].map(([s]) => s))], { stdio: 'inherit' });
 } catch {
   console.log('\nlint нашёл ошибки — ничего не опубликовано');
   process.exit(1);
 }
-for (const [slug, p, src] of drafts) { fs.writeFileSync(p, src.replace(/^draft:\s*true\s*$/m, 'draft: false')); console.log(`опубликовано: ${slug}`); }
+// после записи файла фиксируем SHA-256 опубликованных байт: по нему deploy.sh (check-acceptance.mjs --published) узнаёт,
+// что файл выпущен через приёмку, а не правлен руками
+const published = readPublished();
+const reg = readRegistry();
+const mark = (slug, raw) => {
+  published[slug] = { sha256: sha256(raw), date: localDate(Date.now()), acceptance: reg[slug]?.stages?.foreman?.sha256 ?? null };
+  writePublished(published);
+};
+for (const [slug, p, src] of drafts) { const raw = finalRaw(src); fs.writeFileSync(p, raw); mark(slug, raw); console.log(`опубликовано: ${slug}`); }
 for (const [slug, p, src] of updates) {
-  fs.writeFileSync(path.join(DIR, `${slug}.md`), src.replace(/^draft:\s*true\s*$/m, 'draft: false'));
+  const raw = finalRaw(src);
+  fs.writeFileSync(path.join(DIR, `${slug}.md`), raw);
+  mark(slug, raw);
   fs.unlinkSync(p);
   console.log(`обновлено: ${slug}`);
 }
